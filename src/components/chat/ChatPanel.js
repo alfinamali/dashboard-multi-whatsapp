@@ -1,9 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Avatar, Box, Button, Chip, InputBase, MenuItem, Paper, Select, Stack, Typography } from '@mui/material';
+import {
+  Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
+  InputBase, List, ListItemButton, ListItemText, MenuItem, Paper, Select, Stack, Typography,
+} from '@mui/material';
 import {
   AttachFile, Check, DescriptionOutlined, DoneAll, EmojiEmotionsOutlined, ImageOutlined,
-  InsertDriveFileOutlined, NoteAddOutlined, Send, StorefrontOutlined,
+  InsertDriveFileOutlined, NoteAddOutlined, Send,
 } from '@mui/icons-material';
 import { useApp } from '@/store/AppContext';
 import { C, DAY, actionBtn, card, hhmm } from '@/lib/data';
@@ -12,6 +15,8 @@ export default function ChatPanel({ conv, height }) {
   const { outlets, templates, send, note, openConv } = useApp();
   const [text, setText] = useState('');
   const [tplId, setTplId] = useState('');
+  const [pickOpen, setPickOpen] = useState(false);
+  const [pickId, setPickId] = useState('');
   const end = useRef(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [conv?.id, conv?.msgs.length]);
 
@@ -24,21 +29,21 @@ export default function ChatPanel({ conv, height }) {
   const tpl = approved.find((t) => t.id === tplId) || approved[0];
 
   const sendText = () => { const b = text.trim(); if (b) { send(conv.id, b); setText(''); } };
-  const sendTpl = () => tpl && send(conv.id, tpl.body, true);
+  // signature AppContext: send(convId, text, templateId)
+  const sendTpl = (id) => { const t = approved.find((x) => x.id === id); if (t) send(conv.id, null, t.id); };
+  const openPicker = () => { setPickId(tpl?.id ?? ''); setPickOpen(true); };
+  const greenBtn = { textTransform: 'none', bgcolor: C.green, '&:hover': { bgcolor: C.greenDark } };
 
   return (
     <Paper elevation={0} sx={wrap}>
       <Stack direction="row" alignItems="center" spacing={1.5} sx={{ p: 2, borderBottom: `1px solid ${C.line}` }}>
-        <Avatar sx={{ bgcolor: C.green, width: 48, height: 48 }}><StorefrontOutlined /></Avatar>
+        <Avatar sx={{ bgcolor: C.green, width: 44, height: 44 }}>{conv.name?.[0]}</Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography fontWeight={700} noWrap>{outlet.name}</Typography>
-          <Stack direction="row" alignItems="center" spacing={.8} sx={{ fontSize: 13, color: C.muted }}>
-            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: outlet.online ? '#22C55E' : '#9CA3AF' }} />
-            <span>{outlet.online ? 'Online' : 'Offline'}</span>
-            <Chip size="small" color={open ? 'success' : 'warning'} variant="outlined" sx={{ height: 20, fontSize: 11 }} label={open ? 'Jendela 24 jam aktif' : 'Jendela 24 jam berakhir'} />
-          </Stack>
+          <Typography fontWeight={700} noWrap>{conv.name}</Typography>
+          <Typography fontSize={13} color={C.muted} noWrap>{conv.phone} • via {outlet.name}</Typography>
         </Box>
-        <Typography sx={{ fontSize: 13.5, color: C.muted, display: { xs: 'none', sm: 'block' } }}>{outlet.phone}</Typography>
+        <Chip size="small" color={open ? 'success' : 'warning'} variant="outlined" sx={{ height: 22, fontSize: 11 }}
+          label={open ? 'Jendela 24 jam aktif' : 'Jendela 24 jam berakhir'} />
       </Stack>
 
       <Stack spacing={1.5} sx={{ flex: 1, overflow: 'auto', p: 2.5, bgcolor: '#F8FAF9' }}>
@@ -74,12 +79,13 @@ export default function ChatPanel({ conv, height }) {
               {approved.map((t) => <MenuItem key={t.id} value={t.id} sx={{ whiteSpace: 'normal' }}>{t.name}: {t.body}</MenuItem>)}
             </Select>
           )}
-          <Button variant="contained" aria-label={open ? 'Kirim' : 'Kirim template'} onClick={open ? sendText : sendTpl}
+          <Button variant="contained" aria-label={open ? 'Kirim' : 'Kirim template'}
+            onClick={open ? sendText : () => sendTpl(tpl?.id)}
             sx={{ minWidth: 48, height: 48, borderRadius: '50%', p: 0, bgcolor: C.green, '&:hover': { bgcolor: C.greenDark } }}><Send fontSize="small" /></Button>
         </Stack>
         {!open && <Typography fontSize={12.5} color="warning.main" sx={{ mt: 1 }}>Sudah lewat 24 jam. Kirim template yang disetujui Meta.</Typography>}
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.2, mt: 1.5 }}>
-          <Button startIcon={<DescriptionOutlined />} variant="outlined" sx={actionBtn} onClick={sendTpl}>Kirim Template</Button>
+          <Button startIcon={<DescriptionOutlined />} variant="outlined" sx={actionBtn} disabled={!approved.length} onClick={openPicker}>Kirim Template</Button>
           <Button startIcon={<ImageOutlined />} variant="outlined" sx={actionBtn} disabled={!open} onClick={() => send(conv.id, '🖼️ gambar-produk.jpg')}>Kirim Gambar</Button>
           <Button startIcon={<InsertDriveFileOutlined />} variant="outlined" sx={actionBtn} disabled={!open} onClick={() => send(conv.id, '📎 katalog-produk.pdf')}>Kirim File</Button>
         </Box>
@@ -88,6 +94,30 @@ export default function ChatPanel({ conv, height }) {
           <Button startIcon={<Check />} variant="outlined" sx={actionBtn} onClick={() => openConv(conv.id)}>Tandai Sudah Dibalas</Button>
         </Box>
       </Box>
+
+      <Dialog open={pickOpen} onClose={() => setPickOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Pilih template untuk dikirim ke {conv.name}</DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          <List disablePadding>
+            {approved.map((t) => (
+              <ListItemButton key={t.id} selected={t.id === pickId} onClick={() => setPickId(t.id)}>
+                <ListItemText
+                  primary={t.name}
+                  secondary={t.body}
+                  secondaryTypographyProps={{ sx: { whiteSpace: 'pre-wrap' } }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setPickOpen(false)} sx={{ textTransform: 'none' }}>Batal</Button>
+          <Button variant="contained" disabled={!pickId} sx={greenBtn}
+            onClick={() => { sendTpl(pickId); setPickOpen(false); }}>
+            Kirim
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
