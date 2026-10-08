@@ -1,5 +1,5 @@
 // .env.local:  NEXT_PUBLIC_API_URL=http://localhost:8000/api   (sesuaikan prefix dengan urls.py proyek Anda)
-export const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+export const BASE = process.env.NEXT_PUBLIC_API_URL || 'https://wa-backend-production-96f0.up.railway.app/api';
 const KEY = 'wa_token';
 
 export const getToken = () => (typeof window === 'undefined' ? null : localStorage.getItem(KEY));
