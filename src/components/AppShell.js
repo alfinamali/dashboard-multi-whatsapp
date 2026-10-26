@@ -1,9 +1,12 @@
 'use client';
 import Link from 'next/link';
+import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Alert, Avatar, Badge, Box, Chip, InputBase, Snackbar, Stack, Typography } from '@mui/material';
 import {
-  ChatBubbleOutline, DescriptionOutlined, HomeRounded, KeyboardArrowDown, NotificationsNone,
+  Alert, Avatar, Badge, Box, ButtonBase, Chip, Divider, InputBase, ListItemIcon, Menu, MenuItem, Snackbar, Stack, Typography,
+} from '@mui/material';
+import {
+  ChatBubbleOutline, DescriptionOutlined, HomeRounded, KeyboardArrowDown, Logout, NotificationsNone,
   PeopleAltOutlined, Search, SendOutlined, SettingsOutlined, StorefrontOutlined, WhatsApp,
 } from '@mui/icons-material';
 import { useApp } from '@/store/AppContext';
@@ -18,7 +21,10 @@ const NAV = [
 
 export default function AppShell({ children }) {
   const path = usePathname(), router = useRouter();
-  const { outlets, totalUnread, settings, query, setQuery, toast, clearToast } = useApp();
+  const { outlets, totalUnread, user, query, setQuery, toast, clearToast, logout } = useApp();
+  const [menu, setMenu] = useState(null);
+  const name = user?.name || user?.username || '';
+  const go = (href) => { setMenu(null); router.push(href); };
   const online = outlets.filter((o) => o.online).length;
   const badge = { '/inbox': totalUnread, '/outlets': outlets.length };
 
@@ -58,12 +64,26 @@ export default function AppShell({ children }) {
           </Stack>
           <Box sx={{ flex: 1 }} />
           <Link href="/inbox" aria-label="Pesan belum dibaca"><Badge badgeContent={totalUnread} max={99} color="error"><NotificationsNone sx={{ color: C.text }} /></Badge></Link>
-          <Stack direction="row" alignItems="center" spacing={1.2} component={Link} href="/settings" sx={{ textDecoration: 'none', color: 'inherit' }}>
-            <Avatar sx={{ bgcolor: '#2B4AA8', width: 40, height: 40, fontSize: 14 }}>{initials(settings.name)}</Avatar>
-            <Box sx={{ display: { xs: 'none', sm: 'block' } }}><Typography fontWeight={600} fontSize={14} lineHeight={1.2}>{settings.name}</Typography>
-              <Typography fontSize={12} color={C.muted}>Super Admin</Typography></Box>
-            <KeyboardArrowDown sx={{ color: C.muted }} />
-          </Stack>
+          <ButtonBase onClick={(e) => setMenu(e.currentTarget)} aria-haspopup="menu" aria-label="Menu akun"
+            sx={{ borderRadius: 2, px: 1, py: .5, gap: 1.2, textAlign: 'left', '&:hover': { bgcolor: '#F3F6F5' } }}>
+            <Avatar sx={{ bgcolor: '#2B4AA8', width: 40, height: 40, fontSize: 14 }}>{name ? initials(name) : '?'}</Avatar>
+            <Box sx={{ display: { xs: 'none', sm: 'block' } }}><Typography fontWeight={600} fontSize={14} lineHeight={1.2}>{name}</Typography>
+              <Typography fontSize={12} color={C.muted}>{user?.role || (user?.is_staff ? 'Admin' : 'Agen')}</Typography></Box>
+            <KeyboardArrowDown sx={{ color: C.muted, transform: menu ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+          </ButtonBase>
+          <Menu anchorEl={menu} open={!!menu} onClose={() => setMenu(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            slotProps={{ paper: { sx: { mt: 1, minWidth: 220, borderRadius: 2 } } }}>
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography fontWeight={600} fontSize={14}>{name}</Typography>
+              <Typography fontSize={12.5} color={C.muted}>{user?.email || `@${user?.username || ''}`}</Typography>
+            </Box>
+            <Divider />
+            <MenuItem onClick={() => go('/settings')}><ListItemIcon><SettingsOutlined fontSize="small" /></ListItemIcon>Pengaturan akun</MenuItem>
+            <MenuItem onClick={() => { setMenu(null); logout(); }} sx={{ color: 'error.main' }}>
+              <ListItemIcon><Logout fontSize="small" color="error" /></ListItemIcon>Keluar
+            </MenuItem>
+          </Menu>
         </Stack>
 
         {/* Navigasi mobile */}

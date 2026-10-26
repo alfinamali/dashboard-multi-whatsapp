@@ -12,8 +12,13 @@ export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
+// DRF: {detail} atau {field: [pesan]} -> sertakan nama field agar jelas apa yang kurang
 const errorText = (d, status) =>
-  d?.detail || (d && typeof d === 'object' ? Object.values(d).flat().join(' ') : '') || `Error ${status}`;
+  d?.detail
+  || (d && typeof d === 'object'
+    ? Object.entries(d).map(([k, v]) => (k === 'non_field_errors' ? [v].flat().join(' ') : `${k}: ${[v].flat().join(' ')}`)).join(' | ')
+    : '')
+  || `Error ${status}`;
 
 export async function api(path, { method = 'GET', body, params } = {}) {
   const clean = params ? Object.entries(params).filter(([, v]) => v != null && v !== '') : [];

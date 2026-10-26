@@ -25,7 +25,8 @@ export default function ChatPanel({ conv, height }) {
 
   const outlet = outlets[conv.outlet];
   const open = Date.now() - conv.lastInbound < DAY;
-  const approved = templates.filter((t) => t.status === 'approved');
+  // template milik WABA outlet ini saja (tiap nomor yang dihubungkan lewat Meta punya WABA sendiri)
+  const approved = templates.filter((t) => t.status === 'approved' && (t.waba_id ?? '') === (outlet?.wabaId ?? ''));
   const tpl = approved.find((t) => t.id === tplId) || approved[0];
 
   const sendText = () => { const b = text.trim(); if (b) { send(conv.id, b); setText(''); } };
@@ -40,7 +41,7 @@ export default function ChatPanel({ conv, height }) {
         <Avatar sx={{ bgcolor: C.green, width: 44, height: 44 }}>{conv.name?.[0]}</Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography fontWeight={700} noWrap>{conv.name}</Typography>
-          <Typography fontSize={13} color={C.muted} noWrap>{conv.phone} • via {outlet.name}</Typography>
+          <Typography fontSize={13} color={C.muted} noWrap>{conv.phone} • via {outlet?.name}{outlet?.mode === 'coexist' ? ' (juga aktif di HP)' : ''}</Typography>
         </Box>
         <Chip size="small" color={open ? 'success' : 'warning'} variant="outlined" sx={{ height: 22, fontSize: 11 }}
           label={open ? 'Jendela 24 jam aktif' : 'Jendela 24 jam berakhir'} />
@@ -53,11 +54,20 @@ export default function ChatPanel({ conv, height }) {
           const out = m.dir === 'out';
           return (
             <Box key={i} sx={{ maxWidth: '78%', alignSelf: out ? 'flex-end' : 'flex-start', px: 2, py: 1.2, borderRadius: 2, bgcolor: out ? C.bubbleOut : '#fff', border: out ? 'none' : `1px solid ${C.line}` }}>
-              {m.template && <Typography fontSize={11} color={C.green} fontWeight={600}>Template</Typography>}
+              {(m.template || ['phone', 'history', 'auto'].includes(m.source)) && (
+                <Typography fontSize={11} color={m.source === 'phone' ? C.blue : C.green} fontWeight={600}>
+                  {[m.template && 'Template', m.source === 'phone' && '📱 Dikirim dari HP', m.source === 'history' && 'Riwayat HP', m.source === 'auto' && '🤖 Balasan otomatis'].filter(Boolean).join(' · ')}
+                </Typography>
+              )}
               <Typography fontSize={14} lineHeight={1.7}>{m.text}</Typography>
               <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={.5} sx={{ color: C.muted }}>
                 <Typography fontSize={11}>{hhmm(m.at)}</Typography>
-                {out && <DoneAll sx={{ fontSize: 15, color: C.blue }} />}
+                {out && m.by && <Typography fontSize={11}>· {m.by}</Typography>}
+                {out && (m.status === 'failed'
+                  ? <Typography fontSize={11} color="error.main" title={m.error}>gagal</Typography>
+                  : m.status === 'read' ? <DoneAll sx={{ fontSize: 15, color: C.blue }} />
+                  : m.status === 'delivered' ? <DoneAll sx={{ fontSize: 15 }} />
+                  : <Check sx={{ fontSize: 15 }} />)}
               </Stack>
             </Box>
           );

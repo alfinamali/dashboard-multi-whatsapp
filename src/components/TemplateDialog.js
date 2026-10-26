@@ -6,7 +6,10 @@ import { useApp } from '@/store/AppContext';
 
 // Pemakaian: <TemplateDialog open={open} onClose={() => setOpen(false)} />
 export default function TemplateDialog({ open, onClose }) {
-  const { saveTemplate } = useApp();
+  const { saveTemplate, outlets } = useApp();
+  const [outlet, setOutlet] = useState('');
+  // satu pilihan per WABA (beberapa outlet bisa berbagi WABA yang sama)
+  const wabas = outlets.filter((o, i) => outlets.findIndex((x) => x.wabaId === o.wabaId) === i);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('UTILITY');
   const [body, setBody] = useState('');
@@ -14,7 +17,7 @@ export default function TemplateDialog({ open, onClose }) {
 
   const submit = async () => {
     setBusy(true);
-    const ok = await saveTemplate({ name, category, body });
+    const ok = await saveTemplate({ name, category, body, outlet: outlet === '' ? null : outlet });
     setBusy(false);
     if (ok) { setName(''); setBody(''); onClose(); }
   };
@@ -25,6 +28,17 @@ export default function TemplateDialog({ open, onClose }) {
       <DialogContent sx={{ display: 'grid', gap: 2, pt: '8px !important' }}>
         <TextField label="Nama template" value={name} onChange={(e) => setName(e.target.value)}
           helperText="Otomatis diubah ke huruf kecil dan garis bawah, mis. tes_kirim_1. Nama unik, tidak bisa dipakai ulang." />
+        {wabas.length > 1 && (
+          <TextField select label="Akun WhatsApp (WABA)" value={outlet} onChange={(e) => setOutlet(e.target.value)}
+            helperText="Template hanya bisa dipakai oleh nomor di akun WhatsApp yang sama.">
+            <MenuItem value="">Akun default (.env)</MenuItem>
+            {wabas.filter((o) => o.wabaId).map((o) => (
+              <MenuItem key={o.id} value={o.id}>
+                {outlets.filter((x) => x.wabaId === o.wabaId).map((x) => x.name).join(', ')}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
         <TextField select label="Kategori" value={category} onChange={(e) => setCategory(e.target.value)}>
           <MenuItem value="UTILITY">Utility (transaksi, konfirmasi)</MenuItem>
           <MenuItem value="MARKETING">Marketing (promo)</MenuItem>

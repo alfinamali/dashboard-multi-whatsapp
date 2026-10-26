@@ -1,18 +1,30 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { DEFAULT_SETTINGS } from '@/lib/data';
 import { api, getToken, list, setToken } from '@/lib/api';
 import { mapConv, mapMsg, mapOutlet } from '@/lib/mappers';
 import LoginForm from '@/components/LoginForm';
+import { launchEmbeddedSignup } from '@/lib/embeddedSignup';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
 const POLL_MS = 5000;
-const SETTINGS_KEY = 'wa_settings';
 const MANAGED = 'Dikelola dari Django admin / Meta (belum ada endpoint di BE).';
+const STAFF_ONLY = 'Hanya admin (staf) yang bisa mengelola outlet.';
 
 // updated_at terbaru (dibandingkan sebagai waktu, bukan string)
+// bunyi singkat tanpa file audio
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.35);
+    o.onended = () => ctx.close();
+  } catch { /* browser memblokir audio sebelum ada interaksi */ }
+}
+
 const newest = (rows, cur) =>
   rows.reduce((m, r) => (!m || Date.parse(r.updated_at) > Date.parse(m) ? r.updated_at : m), cur);
 
@@ -25,7 +37,6 @@ export function AppProvider({ children }) {
   const [outlets, setOutlets] = useState([]);
   const [rawContacts, setRawContacts] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [activeId, setActiveId] = useState(null);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState(null);
@@ -35,22 +46,26 @@ export function AppProvider({ children }) {
   const since = useRef(null); // updated_at terbaru dari server, untuk ?updated_after=
   const activeRef = useRef(null);
   const convsRef = useRef([]);
+  // profil & preferensi dari BE (/me/); settings dipertahankan agar komponen lama tetap jalan
+  const settings = useMemo(() => ({
+    name: user?.name || '', email: user?.email || '', role: user?.role || '',
+    notif: user?.preferences?.notif ?? true, sound: user?.preferences?.sound ?? true,
+  }), [user]);
   const settingsRef = useRef(settings);
   activeRef.current = activeId;
   convsRef.current = convs;
   settingsRef.current = settings;
 
-  // Pengaturan belum ada di BE: simpan di localStorage (dibaca setelah mount agar server/klien sama)
-  useEffect(() => {
-    try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY)); if (s) setSettings({ ...DEFAULT_SETTINGS, ...s }); } catch { /* abaikan */ }
-  }, []);
 
   const mergeConvs = useCallback((rows, announce = false) => {
     const fresh = rows.map((r) => mapConv(r, outletIdx.current)).filter((c) => c.outlet !== undefined);
     if (announce && settingsRef.current.notif) {
       const prev = new Map(convsRef.current.map((c) => [c.id, c]));
       const hit = fresh.find((n) => n.id !== activeRef.current && n.unread > (prev.get(n.id)?.unread ?? 0));
-      if (hit) setToast(`Pesan baru dari ${hit.name}`);
+      if (hit) {
+        setToast(`Pesan baru dari ${hit.name}`);
+        if (settingsRef.current.sound) beep();
+      }
     }
     setConvs((prev) => {
       const byId = new Map(prev.map((c) => [c.id, c]));
@@ -82,6 +97,15 @@ export function AppProvider({ children }) {
     setReady(true);
   }, [mergeConvs]);
 
+  // Muat ulang outlet; index outlet bisa bergeser (urut nama), jadi percakapan dipetakan ulang lewat outletId
+  const reloadOutlets = useCallback(async () => {
+    const outs = list(await api('/outlets/')).map(mapOutlet);
+    outletIdx.current = Object.fromEntries(outs.map((o, i) => [o.id, i]));
+    setOutlets(outs);
+    setConvs((cs) => cs.map((c) => ({ ...c, outlet: outletIdx.current[c.outletId] })).filter((c) => c.outlet !== undefined));
+    return outs;
+  }, []);
+
   // Ambil percakapan yang berubah sejak update terakhir (+ pesan chat yang sedang dibuka)
   const refresh = useCallback(async () => {
     try {
@@ -91,9 +115,18 @@ export function AppProvider({ children }) {
     } catch { /* coba lagi di tick berikutnya */ }
   }, [mergeConvs, loadMsgs]);
 
+  // keluar lokal saja (dipakai juga saat token ditolak server / 401)
   const logout = useCallback(() => {
     setToken(null); setAuthed(false); setReady(false); setConvs([]); setActiveId(null);
+    setUser(null); setOutlets([]); setRawContacts([]); setTemplates([]); setNotes({});
+    since.current = null; outletIdx.current = {};
   }, []);
+
+  // tombol Keluar: hapus token di server dulu, lalu keluar lokal
+  const signOut = useCallback(async () => {
+    try { await api('/auth/logout/', { method: 'POST' }); } catch { /* token mungkin sudah tidak berlaku */ }
+    logout();
+  }, [logout]);
 
   const login = async (username, password) => {
     const { token } = await api('/auth/login/', { method: 'POST', body: { username, password } });
@@ -173,7 +206,7 @@ export function AppProvider({ children }) {
   const value = {
     ready, user, convs: convsView, outlets, contacts, templates, settings, activeId, query, setQuery, toast,
     totalUnread: convs.reduce((a, c) => a + c.unread, 0),
-    notify: setToast, clearToast: () => setToast(null), logout,
+    notify: setToast, clearToast: () => setToast(null), logout: signOut,
     reset: async () => { await boot(); setToast('Data dimuat ulang dari server'); },
 
     setActiveId: openConv,
@@ -182,16 +215,69 @@ export function AppProvider({ children }) {
     note,
     simulateIncoming: refresh, // tidak ada lagi pesan palsu; tombol ini kini hanya memuat ulang
 
-    // Outlet & template dikelola di luar aplikasi ini (BE read-only)
-    toggleOutlet: () => setToast(`Status outlet: ${MANAGED}`),
-    addOutlet: () => setToast(`Outlet: ${MANAGED}`),
+    // ---- Outlet (tulis: khusus staf) ----
+    reloadOutlets,
+    toggleOutlet: async (index) => {
+      const o = outlets[index];
+      if (!o) return;
+      if (!user?.is_staff) { setToast(STAFF_ONLY); return; }
+      try {
+        await api(`/outlets/${o.id}/`, { method: 'PATCH', body: { is_active: !o.online } });
+        await reloadOutlets();
+      } catch (e) { setToast(e.message); }
+    },
+    // Tambah manual: bila phone_number_id sudah diketahui (nomor di WABA milik sendiri / token .env)
+    addOutlet: async (v) => {
+      if (!user?.is_staff) { setToast(STAFF_ONLY); return false; }
+      try {
+        await api('/outlets/', { method: 'POST', body: {
+          name: v.name, city: v.city || '', display_number: v.phone, phone_number_id: String(v.phoneNumberId || '').trim(),
+        } });
+        await reloadOutlets();
+        setToast(`${v.name} ditambahkan`);
+        return true;
+      } catch (e) { setToast(e.message); return false; }
+    },
+    updateOutlet: async (index, patch) => {
+      const o = outlets[index];
+      try { await api(`/outlets/${o.id}/`, { method: 'PATCH', body: patch }); await reloadOutlets(); return true; }
+      catch (e) { setToast(e.message); return false; }
+    },
+    // Embedded Signup: buka popup Meta -> kirim code + ID ke BE -> outlet dibuat/diikat
+    // opts: { outletIndex?: number, name?: string, city?: string }
+    connectWhatsApp: async (opts = {}) => {
+      if (!user?.is_staff) { setToast(STAFF_ONLY); return null; }
+      let s;
+      try { s = await launchEmbeddedSignup(); }
+      catch (e) { setToast(e.message); return null; }
+      const target = opts.outletIndex != null && opts.outletIndex !== '' ? outlets[Number(opts.outletIndex)] : null;
+      try {
+        const res = await api('/outlets/embedded-signup/', { method: 'POST', body: {
+          ...s, outlet: target?.id ?? null, name: opts.name || '', city: opts.city || '',
+        } });
+        await reloadOutlets();
+        setTemplates(list(await api('/templates/')));
+        const o = res.outlet;
+        const mode = o.mode === 'coexist' ? 'aktif di HP & dashboard' : 'aktif di dashboard';
+        setToast(res.warnings?.length ? `${o.name} terhubung (${mode}). Catatan: ${res.warnings.join(' | ')}` : `${o.name} terhubung, ${mode}`);
+        return res;
+      } catch (e) { setToast(e.message); return null; }
+    },
+    retrySync: async (index) => {
+      try {
+        await api(`/outlets/${outlets[index].id}/sync/`, { method: 'POST' });
+        await reloadOutlets();
+        setToast('Permintaan sinkron kontak & riwayat dikirim ke Meta');
+      } catch (e) { setToast(e.message); }
+    },
+
     saveTemplate: async (t) => {
       if (t.id) { setToast('Template yang sudah diajukan tidak bisa diubah. Buat baru dengan nama lain.'); return false; }
       const slug = t.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
       try {
         await api('/templates/', {
           method: 'POST',
-          body: { name: slug, language: 'id', category: (t.category || 'UTILITY').toUpperCase(), body: t.body },
+          body: { name: slug, language: 'id', category: (t.category || 'UTILITY').toUpperCase(), body: t.body, outlet: t.outlet ?? null },
         });
         setTemplates(list(await api('/templates/')));
         setToast('Template dikirim ke Meta, menunggu persetujuan');
@@ -225,10 +311,22 @@ export function AppProvider({ children }) {
       catch (e) { setToast(e.message); }
     },
 
-    saveSettings: (s) => {
-      setSettings(s);
-      try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* abaikan */ }
-      setToast('Pengaturan disimpan');
+    // ---- Akun ----
+    saveProfile: async ({ name, email }) => {
+      try { setUser(await api('/me/', { method: 'PATCH', body: { name, email } })); setToast('Profil disimpan'); return true; }
+      catch (e) { setToast(e.message); return false; }
+    },
+    savePreferences: async (prefs) => {
+      try { setUser(await api('/me/', { method: 'PATCH', body: { preferences: prefs } })); setToast('Preferensi disimpan'); return true; }
+      catch (e) { setToast(e.message); return false; }
+    },
+    changePassword: async (oldPassword, newPassword) => {
+      try {
+        const { token } = await api('/me/password/', { method: 'POST', body: { old_password: oldPassword, new_password: newPassword } });
+        setToken(token); // token lama dicabut server; perangkat lain harus login ulang
+        setToast('Password diganti. Perangkat lain perlu login ulang.');
+        return true;
+      } catch (e) { setToast(e.message); return false; }
     },
   };
 
