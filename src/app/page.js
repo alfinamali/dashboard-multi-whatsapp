@@ -1,2 +1,2 @@
-import Dashboard from '@/components/Dashboard';
-export default function Home() { return <Dashboard />; }
+import Inbox from '@/components/Inbox';
+export default function Home() { return <Inbox />; }

@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 COPY . .
+# Railway meneruskan Variables ke build hanya jika dideklarasikan sebagai ARG.
+# NEXT_PUBLIC_* ditanam saat build, jadi ubah variabel = redeploy.
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_APP_NAME
 ARG NEXT_PUBLIC_FB_APP_ID

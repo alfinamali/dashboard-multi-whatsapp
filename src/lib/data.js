@@ -1,16 +1,40 @@
 export const MIN = 60_000, DAY = 24 * 60 * MIN;
 export const ago = (m) => Date.now() - m * MIN;
+// Token desain. Nama lama (green, navy, page, ...) dipertahankan agar halaman lain tetap jalan.
 export const C = {
-  green: '#0F8F63', greenDark: '#0A7A54', greenSoft: '#E6F5EE', bubbleOut: '#DDF7E3',
-  navy: '#0C1E33', page: '#F3F6F5', line: '#E6ECEA', text: '#14212B', muted: '#6B7A85', blue: '#3B6BF0',
+  green: '#13895B', greenDark: '#0E6E49', greenSoft: '#E3F2EA', bubbleOut: '#DCF1E4',
+  navy: '#0E2A2B', navySoft: '#173B3C', page: '#EEF2F0', line: '#D9E2DF', lineSoft: '#E8EEEC',
+  text: '#142321', muted: '#5D6E6A', blue: '#2F6FDB', amber: '#B7791F', surface: '#FFFFFF', chatBg: '#F5F8F6',
 };
-export const card = { bgcolor: '#fff', border: `1px solid ${C.line}`, borderRadius: 3, boxShadow: '0 1px 3px rgba(12,30,51,.05)' };
-export const primaryBtn = { bgcolor: C.green, textTransform: 'none', fontWeight: 600, '&:hover': { bgcolor: C.greenDark } };
-export const actionBtn = { height: 40, textTransform: 'none', fontSize: 13, color: C.text, borderColor: C.line, bgcolor: '#FAFCFB', '& .MuiSvgIcon-root': { fontSize: 18, color: C.muted }, '&:hover': { borderColor: C.green, bgcolor: C.greenSoft } };
-export const AVATAR_COLORS = ['#8FB3F5', '#8FD3C0', '#B9A6E8', '#F2B880', '#8CC7F2'];
+export const FONT = '"Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif';
+export const card = { bgcolor: C.surface, border: `1px solid ${C.line}`, borderRadius: '14px', boxShadow: 'none' };
+export const primaryBtn = { bgcolor: C.green, color: '#fff', textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { bgcolor: C.greenDark, boxShadow: 'none' } };
+export const actionBtn = { height: 36, textTransform: 'none', fontSize: 13, fontWeight: 500, color: C.text, borderColor: C.line, bgcolor: C.surface, '& .MuiSvgIcon-root': { fontSize: 18, color: C.muted }, '&:hover': { borderColor: C.green, bgcolor: C.greenSoft } };
+export const AVATAR_COLORS = ['#5B8DEF', '#3FA58A', '#9479D9', '#D98C4A', '#4FA3D1'];
+
+// Warna identitas outlet: dipakai konsisten di daftar chat, header percakapan, dan filter outlet.
+export const OUTLET_COLORS = ['#2F6FDB', '#C2560C', '#7C4DDB', '#0E7C8C', '#A86A0C', '#C02A72', '#4F7C12', '#4B5D73', '#B03A3A', '#2A8F6A'];
+export const outletColor = (i) => OUTLET_COLORS[((Number(i) || 0) % OUTLET_COLORS.length + OUTLET_COLORS.length) % OUTLET_COLORS.length];
 
 export const hhmm = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-export const initials = (n) => n.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+export const initials = (n) => String(n || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+// 'Hari ini' -> jam, kemarin -> 'Kemarin', minggu ini -> nama hari, selebihnya tanggal
+export const when = (t) => {
+  if (!t) return '';
+  const d = new Date(t), now = new Date();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / DAY);
+  if (diff <= 0) return hhmm(t);
+  if (diff === 1) return 'Kemarin';
+  if (diff < 7) return d.toLocaleDateString('id-ID', { weekday: 'long' });
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+};
+// Teks pratinjau untuk pesan media tanpa caption ("[image]" dari backend)
+const MEDIA_LABEL = { image: '📷 Foto', video: '🎬 Video', audio: '🎤 Audio', document: '📄 Dokumen', sticker: '🏷️ Stiker', media: '📎 Media', media_placeholder: '📎 Media' };
+export const previewText = (t) => {
+  const m = /^\[(\w+)\]$/.exec(t || '');
+  return m ? (MEDIA_LABEL[m[1]] || `📎 ${m[1]}`) : t;
+};
 export const lastOf = (c) => c.msgs[c.msgs.length - 1] || { dir: 'out', text: '(belum ada pesan)', at: c.createdAt || 0 };
 
 // unread di sini hanya placeholder; badge sebenarnya dihitung dari percakapan (lihat OutletList)

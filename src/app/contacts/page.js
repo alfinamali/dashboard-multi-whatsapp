@@ -16,9 +16,9 @@ export default function ContactsPage() {
   const rows = contacts.filter((c) => `${c.name} ${c.phone}`.toLowerCase().includes(q.toLowerCase()));
   return (
     <>
-      <PageHeader title="Kontak" subtitle={`${contacts.length} kontak`}
-        action={<Button variant="contained" startIcon={<Add />} sx={primaryBtn} onClick={() => setOpen(true)}>Tambah Kontak</Button>} />
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ bgcolor: '#fff', border: `1px solid ${C.line}`, borderRadius: 2, px: 1.5, height: 42, mb: 2, maxWidth: 420 }}>
+      <PageHeader title="Kontak" subtitle={`${contacts.length} pelanggan yang pernah chat`}
+        action={<Button variant="contained" startIcon={<Add />} sx={primaryBtn} onClick={() => setOpen(true)}>Tambah kontak</Button>} />
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ bgcolor: '#fff', border: `1px solid ${C.line}`, borderRadius: '10px', px: 1.5, height: 42, mb: 2, maxWidth: { sm: 420 } }}>
         <Search sx={{ color: C.muted }} />
         <InputBase fullWidth placeholder="Cari nama atau nomor..." value={q} onChange={(e) => setQ(e.target.value)} />
       </Stack>
@@ -26,7 +26,7 @@ export default function ContactsPage() {
         { h: 'Nama', r: (c) => <Stack direction="row" spacing={1.5} alignItems="center"><OnlineAvatar name={c.name} i={c.id} size={36} /><Typography fontWeight={500}>{c.name}</Typography></Stack> },
         { h: 'Telepon', r: (c) => c.phone },
         { h: 'Outlet', r: (c) => outlets[c.outlet]?.name },
-        { h: 'Aksi', sx: { width: 140 }, r: (c) => (
+        { h: 'Aksi', sx: { width: 120 }, r: (c) => (
           <Stack direction="row">
             <IconButton aria-label="Chat" onClick={() => { startChat(c); router.push('/inbox'); }}><ChatBubbleOutline /></IconButton>
             <IconButton aria-label="Hapus" onClick={() => { removeContact(c.id); notify('Kontak dihapus'); }}><DeleteOutline /></IconButton>

@@ -21,6 +21,8 @@ export const mapMsg = (m) => ({
   template: m.is_template, status: m.status, error: m.error_detail,
   source: m.source, // dashboard | customer | phone (dikirim dari HP) | history (riwayat HP)
   by: m.sent_by_name,
+  type: m.type || 'text', // text | image | video | audio | document | sticker | template | media_placeholder
+  hasMedia: !!m.has_media, mime: m.mime_type || '', filename: m.filename || '', size: m.file_size || 0,
 });
 
 // outletIdx: { [outletId]: index di array outlets }. FE memakai index, BE memakai id.

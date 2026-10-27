@@ -16,7 +16,9 @@ export class ApiError extends Error {
 const errorText = (d, status) =>
   d?.detail
   || (d && typeof d === 'object'
-    ? Object.entries(d).map(([k, v]) => (k === 'non_field_errors' ? [v].flat().join(' ') : `${k}: ${[v].flat().join(' ')}`)).join(' | ')
+    ? Object.entries(d)
+      .filter(([, v]) => typeof v === 'string' || Array.isArray(v)) // abaikan objek data (mis. outlet)
+      .map(([k, v]) => (k === 'non_field_errors' ? [v].flat().join(' ') : `${k}: ${[v].flat().join(' ')}`)).join(' | ')
     : '')
   || `Error ${status}`;
 
@@ -33,4 +35,36 @@ export async function api(path, { method = 'GET', body, params } = {}) {
   if (res.status === 401) window.dispatchEvent(new Event('wa-logout'));
   if (!res.ok) throw new ApiError(res.status, errorText(data, res.status));
   return data;
+}
+
+// Unggah multipart dengan progres (fetch belum mendukung progres unggah). onProgress(0..1)
+export function apiUpload(path, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}${path}`);
+    const token = getToken();
+    if (token) xhr.setRequestHeader('Authorization', `Token ${token}`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch { /* bukan JSON */ }
+      if (xhr.status === 401) window.dispatchEvent(new Event('wa-logout'));
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new ApiError(xhr.status, errorText(data, xhr.status)));
+    };
+    xhr.onerror = () => reject(new ApiError(0, 'Koneksi terputus saat mengunggah file.'));
+    xhr.send(formData);
+  });
+}
+
+// Ambil file (pratinjau media) dengan token -> Blob. Browser tidak bisa memasang header di <img src>.
+export async function apiBlob(path) {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, { headers: token ? { Authorization: `Token ${token}` } : {} });
+  if (res.status === 401) window.dispatchEvent(new Event('wa-logout'));
+  if (!res.ok) {
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, errorText(data, res.status));
+  }
+  return res.blob();
 }

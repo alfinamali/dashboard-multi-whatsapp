@@ -7,6 +7,7 @@ import { Logout, RestartAlt } from '@mui/icons-material';
 import { useApp } from '@/store/AppContext';
 import { C, card, primaryBtn } from '@/lib/data';
 import { PageHeader } from '@/components/ui';
+import { notifyPermission, requestNotify } from '@/lib/realtime';
 
 const Section = ({ title, hint, children }) => (
   <Paper elevation={0} sx={{ ...card, p: 2.5 }}>
@@ -61,14 +62,37 @@ function PasswordForm() {
   );
 }
 
+const PERM_TEXT = {
+  granted: 'Aktif di browser ini. Muncul di pojok layar saat tab dashboard tidak sedang dilihat.',
+  denied: 'Diblokir. Buka ikon gembok di samping alamat situs, lalu izinkan Notifikasi.',
+  default: 'Belum diizinkan di browser ini.',
+  unsupported: 'Browser ini tidak mendukung notifikasi desktop.',
+};
+
 function Preferences() {
-  const { settings, savePreferences } = useApp();
+  const { settings, savePreferences, live } = useApp();
+  const [perm, setPerm] = useState('default');
+  useEffect(() => setPerm(notifyPermission()), []);
   const toggle = (k) => (e) => savePreferences({ [k]: e.target.checked });
+  const ask = async () => setPerm(await requestNotify());
   return (
-    <Section title="Notifikasi" hint="Disimpan di akun Anda, berlaku di semua perangkat.">
+    <Section title="Notifikasi" hint="Pilihan nyala/mati disimpan di akun Anda. Izin notifikasi desktop diatur per browser.">
       <Stack>
         <FormControlLabel control={<Switch color="success" checked={settings.notif} onChange={toggle('notif')} />} label="Tampilkan notifikasi pesan baru" />
         <FormControlLabel control={<Switch color="success" checked={settings.sound} onChange={toggle('sound')} disabled={!settings.notif} />} label="Bunyikan suara saat ada pesan baru" />
+      </Stack>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ mt: 2, p: 1.6, borderRadius: '10px', bgcolor: C.page }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography fontSize={14} fontWeight={600}>Notifikasi desktop</Typography>
+          <Typography fontSize={12.5} color={C.muted}>{PERM_TEXT[perm] || PERM_TEXT.default}</Typography>
+        </Box>
+        {perm === 'default' && <Button variant="contained" sx={primaryBtn} disabled={!settings.notif} onClick={ask}>Izinkan notifikasi</Button>}
+      </Stack>
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.5 }}>
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: live === 'live' ? '#25A55F' : '#E0A33A' }} />
+        <Typography fontSize={12.5} color={C.muted}>
+          {live === 'live' ? 'Tersambung langsung ke server: pesan baru muncul seketika.' : 'Menyambung ulang ke server… sementara pesan dicek tiap 5 detik.'}
+        </Typography>
       </Stack>
     </Section>
   );

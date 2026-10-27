@@ -6,7 +6,7 @@ import {
 } from '@mui/material';
 import { Add, LinkOutlined, PhoneIphone, StorefrontOutlined, Sync, WhatsApp } from '@mui/icons-material';
 import { useApp } from '@/store/AppContext';
-import { C, primaryBtn } from '@/lib/data';
+import { C, outletColor, primaryBtn } from '@/lib/data';
 import { CountPill, DataTable, PageHeader } from '@/components/ui';
 import FormDialog from '@/components/FormDialog';
 import { signupConfigured } from '@/lib/embeddedSignup';
@@ -31,7 +31,7 @@ function ModeChip({ o }) {
 function SyncInfo({ o, i, onRetry }) {
   if (o.mode !== 'coexist') return <Typography fontSize={12.5} color={C.muted}>—</Typography>;
   const pending = !o.contactsSynced || !o.historySynced;
-  const canRetry = pending && o.connectedAt && Date.now() - o.connectedAt < DAY;
+  const canRetry = pending && !!o.connectedAt && Date.now() - o.connectedAt < DAY;
   return (
     <Stack spacing={0.3}>
       <Typography fontSize={12.5}>Kontak: {o.contactsSynced ? 'diminta' : 'belum'} · Riwayat: {o.historySynced ? `${o.historyProgress}%` : 'belum'}</Typography>
@@ -65,18 +65,18 @@ export default function OutletsPage() {
 
   return (
     <>
-      <PageHeader title="Semua Outlet" subtitle={`${outlets.length} outlet terdaftar`}
+      <PageHeader title="Outlet" subtitle={`${outlets.length} nomor WhatsApp outlet terhubung ke dashboard`}
         action={staff && (
-          <Stack direction="row" spacing={1}>
-            <Button variant="outlined" startIcon={<Add />} sx={{ textTransform: 'none' }} onClick={() => setManual(true)}>Tambah Manual</Button>
-            <Button variant="contained" startIcon={<WhatsApp />} sx={primaryBtn} onClick={() => setConnect({ outletIndex: '', name: '', city: '' })}>Hubungkan Nomor WhatsApp</Button>
-          </Stack>
+          <>
+            <Button variant="outlined" startIcon={<Add />} onClick={() => setManual(true)}>Tambah manual</Button>
+            <Button variant="contained" startIcon={<WhatsApp />} sx={primaryBtn} onClick={() => setConnect({ outletIndex: '', name: '', city: '' })}>Hubungkan nomor WhatsApp</Button>
+          </>
         )} />
 
       <DataTable rows={rows} cols={[
         { h: 'Outlet', r: (o) => (
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar sx={{ bgcolor: o.online ? C.green : '#9CA3AF', width: 36, height: 36 }}><StorefrontOutlined fontSize="small" /></Avatar>
+            <Avatar sx={{ bgcolor: o.online ? `${outletColor(o.idx)}1F` : C.lineSoft, color: o.online ? outletColor(o.idx) : C.muted, width: 38, height: 38 }}><StorefrontOutlined fontSize="small" /></Avatar>
             <Box>
               <Typography fontWeight={500}>{o.name}</Typography>
               <Typography fontSize={12} color={C.muted}>{[o.city, o.verifiedName].filter(Boolean).join(' · ')}</Typography>

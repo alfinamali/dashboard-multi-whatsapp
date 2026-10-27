@@ -1,14 +1,16 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { api, getToken, list, setToken } from '@/lib/api';
+import { api, apiUpload, getToken, list, setToken } from '@/lib/api';
 import { mapConv, mapMsg, mapOutlet } from '@/lib/mappers';
 import LoginForm from '@/components/LoginForm';
 import { launchEmbeddedSignup } from '@/lib/embeddedSignup';
+import { desktopNotify, startRealtime } from '@/lib/realtime';
 
 const Ctx = createContext(null);
 export const useApp = () => useContext(Ctx);
-const POLL_MS = 5000;
+const POLL_MS = 5000;        // tanpa koneksi realtime: cek tiap 5 detik
+const POLL_LIVE_MS = 60000;  // realtime tersambung: polling hanya jaring pengaman
 const MANAGED = 'Dikelola dari Django admin / Meta (belum ada endpoint di BE).';
 const STAFF_ONLY = 'Hanya admin (staf) yang bisa mengelola outlet.';
 
@@ -52,7 +54,11 @@ export function AppProvider({ children }) {
     notif: user?.preferences?.notif ?? true, sound: user?.preferences?.sound ?? true,
   }), [user]);
   const settingsRef = useRef(settings);
+  const outletsRef = useRef([]);
+  const openRef = useRef(() => {});
+  const [live, setLive] = useState('connecting'); // connecting | live | offline
   activeRef.current = activeId;
+  outletsRef.current = outlets;
   convsRef.current = convs;
   settingsRef.current = settings;
 
@@ -63,7 +69,18 @@ export function AppProvider({ children }) {
       const prev = new Map(convsRef.current.map((c) => [c.id, c]));
       const hit = fresh.find((n) => n.id !== activeRef.current && n.unread > (prev.get(n.id)?.unread ?? 0));
       if (hit) {
-        setToast(`Pesan baru dari ${hit.name}`);
+        const outletName = outletsRef.current[hit.outlet]?.name;
+        // tab tidak sedang dilihat -> notifikasi desktop; tab dilihat -> toast di halaman
+        if (typeof document !== 'undefined' && document.hidden) {
+          desktopNotify({
+            title: outletName ? `${hit.name} · ${outletName}` : hit.name,
+            body: hit.msgs[hit.msgs.length - 1]?.text || 'Pesan baru',
+            tag: `conv-${hit.id}`,
+            onClick: () => openRef.current(hit.id),
+          });
+        } else {
+          setToast(`Pesan baru dari ${hit.name}`);
+        }
         if (settingsRef.current.sound) beep();
       }
     }
@@ -107,12 +124,20 @@ export function AppProvider({ children }) {
   }, []);
 
   // Ambil percakapan yang berubah sejak update terakhir (+ pesan chat yang sedang dibuka)
+  const busy = useRef(false);
+  const again = useRef(false);
+  const refreshRef = useRef(() => {});
   const refresh = useCallback(async () => {
+    if (busy.current) { again.current = true; return; } // event beruntun: gabungkan jadi satu putaran lagi
+    busy.current = true;
     try {
       const rows = await api('/conversations/', { params: { updated_after: since.current } });
       if (rows.length) { since.current = newest(rows, since.current); mergeConvs(rows, true); }
       if (activeRef.current) await loadMsgs(activeRef.current); // pesan baru & status centang
-    } catch { /* coba lagi di tick berikutnya */ }
+    } catch { /* coba lagi di tick berikutnya */ } finally {
+      busy.current = false;
+      if (again.current) { again.current = false; setTimeout(() => refreshRef.current(), 0); }
+    }
   }, [mergeConvs, loadMsgs]);
 
   // keluar lokal saja (dipakai juga saat token ditolak server / 401)
@@ -159,15 +184,52 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     if (!authed || !ready) return;
-    const t = setInterval(() => { if (!document.hidden) refresh(); }, POLL_MS);
+    // realtime tersambung: polling jarang (jaring pengaman); terputus: polling 5 detik seperti dulu
+    const ms = live === 'live' ? POLL_LIVE_MS : POLL_MS;
+    const t = setInterval(() => { if (live === 'live' || !document.hidden) refresh(); }, ms);
     return () => clearInterval(t);
-  }, [authed, ready, refresh]);
+  }, [authed, ready, refresh, live]);
+
+  // Realtime (SSE): backend mengabari begitu ada pesan/status baru -> ambil perubahan saat itu juga
+  refreshRef.current = refresh;
+  const liveRef = useRef('connecting');
+  useEffect(() => {
+    if (!authed || !ready) return undefined;
+    let t;
+    liveRef.current = 'connecting';
+    setLive('connecting');
+    const stop = startRealtime({
+      onStatus: (st) => {
+        if (st === 'live' && liveRef.current !== 'live') refreshRef.current(); // susul perubahan selama terputus
+        liveRef.current = st;
+        setLive(st);
+      },
+      onEvent: (ev) => {
+        if (ev.event !== 'change') return;
+        clearTimeout(t);
+        t = setTimeout(() => refreshRef.current(), 150); // gabungkan event yang datang bersamaan
+      },
+    });
+    return () => { stop(); clearTimeout(t); };
+  }, [authed, ready]);
+
+  // jumlah belum dibaca di judul tab
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const base = process.env.NEXT_PUBLIC_APP_NAME || 'Multi Outlet';
+    const n = convs.reduce((a, c) => a + c.unread, 0);
+    document.title = n ? `(${n}) ${base}` : base;
+  }, [convs]);
 
   const openConv = useCallback((id) => {
     setActiveId(id);
     setConvs((cs) => cs.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
     loadMsgs(id).catch(() => {});
   }, [loadMsgs]);
+  openRef.current = openConv;
+
+  // tutup jendela percakapan (tombol X / Esc / kembali di HP)
+  const closeConv = useCallback(() => setActiveId(null), []);
 
   // send(convId, 'teks') -> teks (hanya saat jendela 24 jam aktif) | send(convId, null, templateId) -> template
   const send = useCallback(async (convId, text, templateId) => {
@@ -179,6 +241,22 @@ export function AppProvider({ children }) {
     } catch (e) {
       setToast(e.message);
       loadMsgs(convId).catch(() => {}); // BE mencatat pesan gagal; tampilkan
+    }
+  }, [loadMsgs]);
+
+  // kirim file (gambar/video/audio/dokumen) + caption; onProgress(0..1) untuk bilah progres unggah
+  const sendMedia = useCallback(async (convId, file, caption, onProgress) => {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    if (caption) fd.append('caption', caption);
+    try {
+      const m = await apiUpload(`/conversations/${convId}/media/`, fd, onProgress);
+      setConvs((cs) => cs.map((c) => (c.id === convId ? { ...c, msgs: [...c.msgs, mapMsg(m)] } : c)));
+      return true;
+    } catch (e) {
+      setToast(e.message);
+      loadMsgs(convId).catch(() => {});
+      return false;
     }
   }, [loadMsgs]);
 
@@ -206,12 +284,15 @@ export function AppProvider({ children }) {
   const value = {
     ready, user, convs: convsView, outlets, contacts, templates, settings, activeId, query, setQuery, toast,
     totalUnread: convs.reduce((a, c) => a + c.unread, 0),
+    live,
     notify: setToast, clearToast: () => setToast(null), logout: signOut,
     reset: async () => { await boot(); setToast('Data dimuat ulang dari server'); },
 
     setActiveId: openConv,
     openConv,
+    closeConv,
     send,
+    sendMedia,
     note,
     simulateIncoming: refresh, // tidak ada lagi pesan palsu; tombol ini kini hanya memuat ulang
 
