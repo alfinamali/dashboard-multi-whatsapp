@@ -31,12 +31,22 @@ function ModeChip({ o }) {
 function SyncInfo({ o, i, onRetry }) {
   if (o.mode !== 'coexist') return <Typography fontSize={12.5} color={C.muted}>—</Typography>;
   const pending = !o.contactsSynced || !o.historySynced;
-  const canRetry = pending && !!o.connectedAt && Date.now() - o.connectedAt < DAY;
+  const canRetry = pending && !o.syncBlocked && !!o.connectedAt && Date.now() - o.connectedAt < DAY;
+  const status = (done, label) => (done ? label : o.syncBlocked ? 'ditolak Meta' : 'belum');
   return (
-    <Stack spacing={0.3}>
-      <Typography fontSize={12.5}>Kontak: {o.contactsSynced ? 'diminta' : 'belum'} · Riwayat: {o.historySynced ? `${o.historyProgress}%` : 'belum'}</Typography>
+    <Stack spacing={0.4} sx={{ maxWidth: 280 }}>
+      <Typography fontSize={12.5}>
+        Kontak: {status(o.contactsSynced, 'diminta')} · Riwayat: {status(o.historySynced, `${o.historyProgress}%`)}
+      </Typography>
       {canRetry && <Button size="small" startIcon={<Sync />} onClick={() => onRetry(i)} sx={{ textTransform: 'none', alignSelf: 'flex-start', p: 0 }}>Ulangi sinkron</Button>}
-      {pending && !canRetry && <Typography fontSize={11.5} color="warning.main">Batas 24 jam lewat; hubungkan ulang untuk sinkron.</Typography>}
+      {pending && !canRetry && (
+        <Tooltip title={o.syncBlocked || 'Meta hanya menerima permintaan sinkron dalam 24 jam setelah nomor terhubung.'}>
+          <Typography fontSize={11.5} color="warning.main" sx={{ cursor: 'help' }}>
+            {o.syncBlocked ? 'Sinkron hanya bisa sekali.' : 'Batas 24 jam lewat.'} Untuk mengulang: putuskan di HP
+            (Pengaturan › Akun › Business Platform), lalu Hubungkan ulang. Chat baru tetap masuk normal.
+          </Typography>
+        </Tooltip>
+      )}
     </Stack>
   );
 }

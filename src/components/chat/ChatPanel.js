@@ -182,7 +182,7 @@ export default function ChatPanel({ conv, onClose, mobile }) {
             )}
           </Stack>
         </Box>
-        <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: .6, px: 1.2, height: 28, borderRadius: 14, fontSize: 12, fontWeight: 600,
+        <Box sx={{ display: { xs: 'none', xl: 'flex' }, alignItems: 'center', gap: .6, px: 1.2, height: 28, borderRadius: 14, fontSize: 12, fontWeight: 600, flexShrink: 0,
           bgcolor: open ? C.greenSoft : '#FDF1DC', color: open ? C.greenDark : C.amber }}>
           <Schedule sx={{ fontSize: 15 }} />{open ? `Bisa dibalas bebas ${hoursLeft} jam lagi` : 'Lewat 24 jam'}
         </Box>

@@ -13,6 +13,7 @@ export const mapOutlet = (o) => ({
   historySynced: !!o.history_sync_requested_at,
   historyProgress: o.history_progress ?? 0,
   disconnected: o.disconnected_reason || '',
+  syncBlocked: o.sync_blocked || '', // Meta menolak sinkron (sudah pernah diminta / lewat 24 jam)
   autoReply: !!o.auto_reply, autoReplyText: o.auto_reply_text || '',
 });
 

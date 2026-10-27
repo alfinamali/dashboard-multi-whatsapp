@@ -1,48 +1,45 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { Avatar, Box, ButtonBase, Chip, Stack, Typography } from '@mui/material';
-import { PhoneIphone } from '@mui/icons-material';
+import { Avatar, Box, ButtonBase, Chip, IconButton, Stack, Typography } from '@mui/material';
+import { AllInbox, ArrowBack, PhoneIphone } from '@mui/icons-material';
 import { C, initials, lastOf, outletColor, previewText, when } from '@/lib/data';
 
 const STATUS = [['all', 'Semua'], ['unread', 'Belum dibaca'], ['replied', 'Sudah dibalas']];
 
-function OutletChip({ label, color, n, on, onClick }) {
-  return (
-    <ButtonBase onClick={onClick} aria-pressed={on}
-      sx={{
-        flexShrink: 0, height: 32, px: 1.4, gap: .8, borderRadius: '16px', fontSize: 13, fontWeight: on ? 600 : 500,
-        border: `1px solid ${on ? color || C.navy : C.line}`, bgcolor: on ? (color ? `${color}14` : C.navy) : C.surface,
-        color: on ? (color || '#fff') : C.text, whiteSpace: 'nowrap',
-      }}>
-      {color && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />}
-      {label}
-      {n > 0 && <Box component="span" sx={{ fontSize: 11.5, fontWeight: 700, color: on && !color ? '#fff' : C.green }}>{n}</Box>}
-    </ButtonBase>
-  );
-}
-
-export default function ConversationList({ convs, outlets, activeId, onPick, outlet, onOutlet, query, onClearQuery }) {
+// Daftar chat untuk outlet yang dipilih di kolom outlet ('all' = semua outlet).
+export default function ConversationList({ convs, outlets, activeId, onPick, outlet, query, onClearQuery, onBack }) {
   const [status, setStatus] = useState('all');
-
-  const unreadBy = useMemo(() => convs.reduce((m, c) => ({ ...m, [c.outlet]: (m[c.outlet] || 0) + c.unread }), {}), [convs]);
-  const totalUnread = convs.reduce((n, c) => n + c.unread, 0);
+  const scoped = useMemo(() => convs.filter((c) => outlet === 'all' || c.outlet === outlet), [convs, outlet]);
+  const scopedUnread = scoped.reduce((n, c) => n + c.unread, 0);
+  const o = outlet === 'all' ? null : outlets[outlet];
+  const color = o ? outletColor(outlet) : C.navy;
 
   const items = useMemo(() => {
     const q = (query || '').toLowerCase();
-    return convs
-      .filter((c) => outlet === 'all' || c.outlet === outlet)
+    return scoped
       .filter((c) => (status === 'unread' ? c.unread > 0 : status === 'replied' ? lastOf(c).dir === 'out' : true))
       .filter((c) => !q || `${c.name} ${c.phone} ${c.msgs.map((m) => m.text).join(' ')}`.toLowerCase().includes(q))
       .sort((a, b) => lastOf(b).at - lastOf(a).at);
-  }, [convs, outlet, status, query]);
+  }, [scoped, status, query]);
 
   return (
     <Box component="section" aria-label="Daftar percakapan"
       sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0, height: '100%', borderRight: { md: `1px solid ${C.line}` } }}>
       <Box sx={{ px: 2, pt: 2, pb: 1.5, borderBottom: `1px solid ${C.line}` }}>
-        <Stack direction="row" alignItems="baseline" justifyContent="space-between" sx={{ mb: 1.5 }}>
-          <Typography component="h1" fontWeight={700} fontSize={20}>Kotak masuk</Typography>
-          <Typography fontSize={13} color={C.muted}>{totalUnread ? `${totalUnread} belum dibaca` : 'Semua sudah dibaca'}</Typography>
+        <Stack direction="row" alignItems="center" spacing={1.2} sx={{ mb: 1.5, minHeight: 40 }}>
+          {onBack && <IconButton aria-label="Kembali ke daftar outlet" onClick={onBack} sx={{ ml: -1 }}><ArrowBack /></IconButton>}
+          <Avatar sx={{ width: 36, height: 36, borderRadius: '10px', fontSize: 13, fontWeight: 700, bgcolor: `${color}1F`, color }}>
+            {o ? initials(o.name) : <AllInbox sx={{ fontSize: 19 }} />}
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={.6}>
+              <Typography component="h2" fontWeight={700} fontSize={16} noWrap sx={{ color: o ? color : C.text }}>{o ? o.name : 'Semua outlet'}</Typography>
+              {o?.mode === 'coexist' && <PhoneIphone sx={{ fontSize: 14, color: C.muted }} />}
+            </Stack>
+            <Typography fontSize={12.5} color={C.muted} noWrap>
+              {scoped.length} percakapan{scopedUnread ? `, ${scopedUnread} belum dibaca` : ''}{o?.phone ? ` · ${o.phone}` : ''}
+            </Typography>
+          </Box>
         </Stack>
 
         {/* tab status */}
@@ -59,15 +56,6 @@ export default function ConversationList({ convs, outlets, activeId, onPick, out
           })}
         </Stack>
 
-        {/* filter outlet, warna = identitas outlet */}
-        {outlets.length > 1 && (
-          <Stack direction="row" spacing={.8} sx={{ overflowX: 'auto', mx: -2, px: 2, pb: .3, scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
-            <OutletChip label="Semua outlet" n={0} on={outlet === 'all'} onClick={() => onOutlet('all')} />
-            {outlets.map((o, i) => (
-              <OutletChip key={o.id ?? i} label={o.name} color={outletColor(i)} n={unreadBy[i] || 0} on={outlet === i} onClick={() => onOutlet(outlet === i ? 'all' : i)} />
-            ))}
-          </Stack>
-        )}
         {query && (
           <Chip size="small" label={`Hasil untuk "${query}"`} onDelete={onClearQuery} sx={{ mt: 1.2, bgcolor: C.greenSoft, color: C.greenDark }} />
         )}
@@ -89,17 +77,16 @@ export default function ConversationList({ convs, outlets, activeId, onPick, out
         {items.map((c) => {
           const on = c.id === activeId;
           const last = lastOf(c);
-          const color = outletColor(c.outlet);
-          const o = outlets[c.outlet];
+          const rowColor = outletColor(c.outlet);
           return (
             <Box component="li" key={c.id}>
               <ButtonBase onClick={() => onPick(c)} aria-current={on ? 'true' : undefined}
                 sx={{
                   width: '100%', textAlign: 'left', display: 'flex', gap: 1.5, alignItems: 'flex-start', px: 2, py: 1.5,
                   position: 'relative', bgcolor: on ? C.greenSoft : 'transparent', '&:hover': { bgcolor: on ? C.greenSoft : C.chatBg },
-                  '&::before': { content: '""', position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: '0 3px 3px 0', bgcolor: color, opacity: on ? 1 : .55 },
+                  '&::before': { content: '""', position: 'absolute', left: 0, top: 10, bottom: 10, width: 3, borderRadius: '0 3px 3px 0', bgcolor: rowColor, opacity: on ? 1 : .55 },
                 }}>
-                <Avatar sx={{ width: 42, height: 42, fontSize: 14, fontWeight: 600, bgcolor: `${color}1F`, color }}>{initials(c.name)}</Avatar>
+                <Avatar sx={{ width: 42, height: 42, fontSize: 14, fontWeight: 600, bgcolor: `${rowColor}1F`, color: rowColor }}>{initials(c.name)}</Avatar>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Stack direction="row" alignItems="baseline" spacing={1}>
                     <Typography fontSize={14.5} fontWeight={c.unread ? 700 : 600} noWrap sx={{ flex: 1 }}>{c.name}</Typography>
@@ -114,8 +101,8 @@ export default function ConversationList({ convs, outlets, activeId, onPick, out
                       <Box sx={{ minWidth: 20, height: 20, px: .6, borderRadius: 10, bgcolor: C.green, color: '#fff', fontSize: 11.5, fontWeight: 700, display: 'grid', placeItems: 'center' }}>{c.unread}</Box>
                     )}
                   </Stack>
-                  {outlets.length > 1 && o && (
-                    <Typography fontSize={12} fontWeight={500} sx={{ color, mt: .4 }} noWrap>{o.name}</Typography>
+                  {outlet === 'all' && outlets.length > 1 && outlets[c.outlet] && (
+                    <Typography fontSize={12} fontWeight={500} sx={{ color: outletColor(c.outlet), mt: .4 }} noWrap>{outlets[c.outlet].name}</Typography>
                   )}
                 </Box>
               </ButtonBase>
