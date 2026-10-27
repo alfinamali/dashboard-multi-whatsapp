@@ -34,7 +34,7 @@ export default function ContactsPage() {
       ]} />
       <FormDialog open={open} title="Tambah Kontak" onClose={() => setOpen(false)} initial={{ outlet: 0 }}
         onSave={(v) => { addContact(v); notify('Kontak ditambahkan'); }}
-        fields={[{ name: 'name', label: 'Nama', required: true }, { name: 'phone', label: 'Nomor WhatsApp', required: true },
+        fields={[{ name: 'name', label: 'Nama', required: true }, { name: 'phone', label: 'Nomor WhatsApp (mis. 0812… atau +62 812…)', required: true },
           { name: 'outlet', label: 'Outlet', options: outlets.map((o, i) => ({ value: i, label: o.name })) }]} />
     </>
   );

@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Box, Button, ButtonBase, Paper, Stack, Typography } from '@mui/material';
 import { Add, Sync } from '@mui/icons-material';
 import { useApp } from '@/store/AppContext';
@@ -17,6 +17,12 @@ const FILTERS = [['all', 'Semua'], ['approved', 'Disetujui'], ['pending', 'Menun
 export default function TemplatesPage() {
   const { templates, outlets, user, syncTemplates } = useApp();
   const [open, setOpen] = useState(false);
+  const [forOutlet, setForOutlet] = useState(null);
+  // dibuka dari chat: /templates?baru=<id outlet> -> langsung tampilkan dialog untuk outlet itu
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('baru');
+    if (v !== null) { setForOutlet(v ? Number(v) : null); setOpen(true); window.history.replaceState(null, '', window.location.pathname); }
+  }, []);
   const [f, setF] = useState('all');
   const [busy, setBusy] = useState(false);
   const staff = !!user?.is_staff;
@@ -91,7 +97,7 @@ export default function TemplatesPage() {
         </Box>
       )}
 
-      <TemplateDialog open={open} onClose={() => setOpen(false)} />
+      <TemplateDialog open={open} onClose={() => { setOpen(false); setForOutlet(null); }} outletId={forOutlet} />
     </>
   );
 }

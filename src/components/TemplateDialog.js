@@ -1,15 +1,23 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
 import { primaryBtn } from '@/lib/data';
 import { useApp } from '@/store/AppContext';
 
-// Pemakaian: <TemplateDialog open={open} onClose={() => setOpen(false)} />
-export default function TemplateDialog({ open, onClose }) {
+// Pemakaian: <TemplateDialog open={open} onClose={() => setOpen(false)} outletId={opsional} />
+// Template milik satu akun WhatsApp (WABA); hanya nomor di akun itu yang bisa memakainya.
+export default function TemplateDialog({ open, onClose, outletId = null }) {
   const { saveTemplate, outlets } = useApp();
-  const [outlet, setOutlet] = useState('');
   // satu pilihan per WABA (beberapa outlet bisa berbagi WABA yang sama)
-  const wabas = outlets.filter((o, i) => outlets.findIndex((x) => x.wabaId === o.wabaId) === i);
+  const wabas = outlets.filter((o, i) => o.wabaId && outlets.findIndex((x) => x.wabaId === o.wabaId) === i);
+  const hasDefault = outlets.some((o) => !o.wabaId) || !outlets.length; // outlet lama yang memakai WABA dari .env
+  const pickFor = (id) => {
+    const o = outlets.find((x) => x.id === id);
+    const w = o && wabas.find((x) => x.wabaId === o.wabaId);
+    return w ? w.id : (wabas[0]?.id ?? '');
+  };
+  const [outlet, setOutlet] = useState('');
+  useEffect(() => { if (open) setOutlet(pickFor(outletId)); }, [open, outletId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [name, setName] = useState('');
   const [category, setCategory] = useState('UTILITY');
   const [body, setBody] = useState('');
@@ -28,11 +36,11 @@ export default function TemplateDialog({ open, onClose }) {
       <DialogContent sx={{ display: 'grid', gap: 2, pt: '8px !important' }}>
         <TextField label="Nama template" value={name} onChange={(e) => setName(e.target.value)}
           helperText="Otomatis diubah ke huruf kecil dan garis bawah, mis. tes_kirim_1. Nama unik, tidak bisa dipakai ulang." />
-        {wabas.length > 1 && (
-          <TextField select label="Akun WhatsApp (WABA)" value={outlet} onChange={(e) => setOutlet(e.target.value)}
-            helperText="Template hanya bisa dipakai oleh nomor di akun WhatsApp yang sama.">
-            <MenuItem value="">Akun default (.env)</MenuItem>
-            {wabas.filter((o) => o.wabaId).map((o) => (
+        {(wabas.length > 0) && (
+          <TextField select label="Untuk outlet" value={outlet} onChange={(e) => setOutlet(e.target.value)}
+            helperText="Template diajukan ke akun WhatsApp outlet ini dan hanya bisa dipakai oleh nomornya.">
+            {hasDefault && <MenuItem value="">Akun default (.env)</MenuItem>}
+            {wabas.map((o) => (
               <MenuItem key={o.id} value={o.id}>
                 {outlets.filter((x) => x.wabaId === o.wabaId).map((x) => x.name).join(', ')}
               </MenuItem>

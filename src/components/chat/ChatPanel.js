@@ -225,13 +225,23 @@ export default function ChatPanel({ conv, onClose, mobile }) {
         ) : (
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} spacing={1.2} sx={{ p: 1.4, borderRadius: '12px', bgcolor: '#FDF6E8', border: '1px solid #F1DDB0' }}>
             <Box sx={{ flex: 1 }}>
-              <Typography fontSize={13.5} fontWeight={600}>Pelanggan belum membalas dalam 24 jam</Typography>
-              <Typography fontSize={12.5} color={C.muted}>Sesuai aturan WhatsApp, Anda hanya bisa mengirim template yang sudah disetujui Meta.</Typography>
+              <Typography fontSize={13.5} fontWeight={600}>
+                {conv.lastInbound ? 'Pelanggan belum membalas dalam 24 jam' : 'Pelanggan ini belum pernah chat ke outlet ini'}
+              </Typography>
+              <Typography fontSize={12.5} color={C.muted}>
+                Aturan WhatsApp: pesan pembuka harus template yang disetujui Meta. Setelah pelanggan membalas, Anda bisa membalas bebas selama 24 jam.
+                {!approved.length && ' Outlet ini belum punya template yang disetujui.'}
+                {!approved.length && outlet?.mode === 'coexist' && ' Atau sapa dulu dari WhatsApp Business di HP outlet; begitu pelanggan membalas, lanjutkan dari sini.'}
+              </Typography>
             </Box>
-            <Button variant="contained" startIcon={<DescriptionOutlined />} disabled={!approved.length} onClick={openPicker}
-              sx={{ bgcolor: C.green, '&:hover': { bgcolor: C.greenDark }, flexShrink: 0 }}>
-              {approved.length ? 'Pilih template' : 'Belum ada template'}
-            </Button>
+            {approved.length ? (
+              <Button variant="contained" startIcon={<DescriptionOutlined />} onClick={openPicker}
+                sx={{ bgcolor: C.green, '&:hover': { bgcolor: C.greenDark }, flexShrink: 0 }}>Pilih template</Button>
+            ) : (
+              <Button variant="outlined" startIcon={<DescriptionOutlined />} href={`/templates?baru=${outlet?.id ?? ''}`} sx={{ flexShrink: 0 }}>
+                Buat template
+              </Button>
+            )}
           </Stack>
         )}
         {open && text.length === 0 && !mobile && (
